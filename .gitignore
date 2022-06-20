@@ -1,3 +1,9 @@
+# macOS ignore
+.DS_store
+
+# build dir
+build
+
 # Prerequisites
 *.d
 
