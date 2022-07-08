@@ -7,10 +7,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
-set(PROJECT_DIFF_NAME bsdiff)
-set(PROJECT_PATCH_NAME bspatch)
-set(PROJECT_TEST_NAME ${CMAKE_PROJECT_NAME}_test)
+set(LIB_BZIP_NAME bz2)
+set(LIB_DIFF_NAME bsdiff)
+set(LIB_PATCH_NAME bspatch)
+set(BIN_DIFF_NAME bsdiff_bin)
+set(BIN_PATCH_NAME bspatch_bin)
+set(PROJECT_TEST_NAME bsdiff_test)
 
+add_subdirectory(lib)
 add_subdirectory(src)
 
 find_package(GTest)
