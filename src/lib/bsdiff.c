@@ -29,8 +29,8 @@
 #include <limits.h>
 #include <string.h>
 
-#include <bsdiff/bsdiff.h>
-#include <stdio.h>
+#include <bsdiff/legacy/bsdiff.h>
+#include <fastlz.h>
 
 #include "bsearch.h"
 #include "helper.h"
@@ -46,6 +46,7 @@ typedef struct bsdiff_request {
 
   int64_t *sa;
   patch_block_t *block;
+  uint8_t *compress_buffer;
 } bsdiff_request_t;
 
 typedef struct approximate_match {
@@ -54,9 +55,6 @@ typedef struct approximate_match {
 } approximate_match_t;
 
 typedef approximate_match_t am_t;
-
-static int64_t writedata(bsdiff_stream_t *stream, const void *buffer,
-                         int64_t length);
 
 static int64_t forward_ext_len(const uint8_t *old, int64_t old_beg,
                                int64_t old_end, const uint8_t *new,
@@ -80,12 +78,18 @@ static int bsdiff_internal(const bsdiff_request_t req) {
   int64_t len_diff, len_extra, len_skip;
   int64_t i;
 
+  uint8_t fastlz_buffer[FASTLZ_BUFFER_SIZE];
+
   int64_t *buffer;
+
+  uint64_t out_sz;
+  uint8_t last_block_flag;
 
   buffer = req.stream->malloc((req.oldsize + 1) * sizeof(int64_t));
   if (buffer == NULL) {
     return -1;
   }
+
   qsufsort(req.sa, buffer, req.old, req.oldsize);
   req.stream->free(buffer);
 
@@ -130,8 +134,20 @@ static int bsdiff_internal(const bsdiff_request_t req) {
       req.block->data[len_diff + i] = req.new[last_new_cur + lenf + i];
     }
 
-    if (writedata(req.stream, req.block, PATCH_BLK_SZ(req.block)) != 0) {
-      return -1;
+    // write block
+    req.stream->write(req.stream, req.block, sizeof(*req.block));
+
+    // compress and write data in block
+    for (i = 0; i < len_diff + len_extra; i += FASTLZ_INPUT_SIZE) {
+      out_sz = fastlz_compress_level(2, req.block->data + i, FASTLZ_INPUT_SIZE,
+                                     fastlz_buffer);
+      last_block_flag = 0;
+      if ((i + FASTLZ_INPUT_SIZE) >= (len_diff + len_extra)) {
+        last_block_flag = 1;
+      }
+      req.stream->write(req.stream, &out_sz, sizeof(out_sz));
+      req.stream->write(req.stream, &last_block_flag, sizeof(last_block_flag));
+      req.stream->write(req.stream, fastlz_buffer, out_sz);
     }
 
     last_new_cur = new_cursor - lenb;
@@ -144,6 +160,7 @@ static int bsdiff_internal(const bsdiff_request_t req) {
 int bsdiff(const uint8_t *old, int64_t old_sz, const uint8_t *new,
            int64_t new_sz, bsdiff_stream_t *stream) {
   int ret;
+  size_t block_sz;
   bsdiff_request_t req;
 
   req.sa = stream->malloc((req.oldsize + 1) * sizeof(int64_t));
@@ -151,7 +168,8 @@ int bsdiff(const uint8_t *old, int64_t old_sz, const uint8_t *new,
     return -1;
   }
 
-  req.block = stream->malloc(2 * (req.newsize + 1) * sizeof(int64_t));
+  block_sz = 2 * (req.newsize + 1) * sizeof(int64_t);
+  req.block = stream->malloc(block_sz);
   if (req.block == NULL) {
     stream->free(req.sa);
     return -1;
@@ -169,25 +187,6 @@ int bsdiff(const uint8_t *old, int64_t old_sz, const uint8_t *new,
   stream->free(req.block);
 
   return ret;
-}
-
-static int64_t writedata(bsdiff_stream_t *stream, const void *buffer,
-                         int64_t length) {
-  int64_t result = 0;
-
-  while (length > 0) {
-    const int smallsize = (int)MIN(length, INT_MAX);
-    const int writeresult = stream->write(stream, buffer, smallsize);
-    if (writeresult == -1) {
-      return -1;
-    }
-
-    result += writeresult;
-    length -= smallsize;
-    buffer = (uint8_t *)buffer + smallsize;
-  }
-
-  return result;
 }
 
 static am_t approximate_match(const int64_t *sa, const uint8_t *old,

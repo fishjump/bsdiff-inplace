@@ -26,29 +26,33 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BSDIFF_BSPATCH_H__
-#define __BSDIFF_BSPATCH_H__
+#ifndef __BSDIFF_LEGACY_BSDIFF_H__
+#define __BSDIFF_LEGACY_BSDIFF_H__
 
-#include "adapter.h"
-#include "patch_format.h"
+#include <stddef.h>
+#include <stdint.h>
 
-#define BSPATCH_SUCCESS 0
-#define BSPATCH_READ_PATCH_ERR 1
-#define BSPATCH_READ_OLD_ERR 2
-#define BSPATCH_WRITE_OLD_ERR 3
-#define BSPATCH_SIGNATURE_INCONSISTENCY_ERR 4
-#define BSPATCH_SANITY_CHECK_ERR 5
-#define BSPATCH_DECOMPRESS_ERR 6
+#include "../patch_format.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int bspatch(bsdiff_array_like_t *old, const bsdiff_stream_t *patch,
-            size_t *new_size);
+typedef struct bsdiff_stream bsdiff_stream_t;
+
+struct bsdiff_stream {
+  void *opaque;
+
+  void *(*malloc)(size_t size);
+  void (*free)(void *ptr);
+  int (*write)(bsdiff_stream_t *stream, const void *buffer, int size);
+};
+
+int bsdiff(const uint8_t *old, int64_t old_sz, const uint8_t *new,
+           int64_t new_sz, bsdiff_stream_t *stream);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // __BSDIFF_BSPATCH_H__
+#endif // __BSDIFF_LEGACY_BSDIFF_H__

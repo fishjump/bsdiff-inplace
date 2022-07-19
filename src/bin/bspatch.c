@@ -37,96 +37,80 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <bsdiff/adapters/array_like_adapter.h>
 #include <bsdiff/bspatch.h>
 
-#include "defs.h"
+// static int bz2_read(const file_stream_t *stream, void *buffer, int size) {
+//   int n;
+//   int bz2err;
+//   BZFILE *bz2;
 
-static int bz2_read(const struct bspatch_stream *stream, void *buffer,
-                    int length) {
-  int n;
-  int bz2err;
-  BZFILE *bz2;
+//   bz2 = (BZFILE *)stream->opaque;
+//   if (BZ2_bzRead(&bz2err, bz2, buffer, size) != size) {
+//     return -1;
+//   }
 
-  bz2 = (BZFILE *)stream->opaque;
-  n = BZ2_bzRead(&bz2err, bz2, buffer, length);
-  if (n != length) {
-    printf("[%s %d] n = %d, len = %d\n", __FILE__, __LINE__, n, length);
-    return -1;
-  }
+//   return 0;
+// }
 
-  return 0;
+static size_t file_read(const bsdiff_stream_t *stream, void *buffer,
+                        size_t size) {
+  return fread(buffer, 1, size, (FILE *)stream->opaque);
 }
 
 int main(int argc, char *argv[]) {
-  FILE *pf;
+  FILE *fp;
   int fd;
   int bz2err;
 
-  uint8_t *old;
-  BZFILE *bz2;
-  int64_t old_sz, new_sz;
-  bspatch_stream_t stream;
-  header_t header;
+  uint8_t *old_buffer;
   struct stat sb;
+
+  size_t old_sz;
+  array_like_t old_array_like;
+  bsdiff_array_like_t old;
+  bsdiff_stream_t patch;
+  size_t new_sz;
 
   if (argc != 4) {
     errx(1, "usage: %s oldfile newfile patchfile\n", argv[0]);
   }
 
-  // open patch file
-  if ((pf = fopen(argv[3], "r")) == NULL) {
-    err(1, "failed to open patch file: %s\n", argv[3]);
-  }
-
-  // read header
-  if (fread(&header, sizeof(header), 1, pf) != 1) {
-    if (feof(pf)) {
-      errx(1, "corrupt patch: eof while read patch header(%s)\n", argv[3]);
-    } else {
-      err(1, "failed to read patch header: %s\n", argv[3]);
-    }
-  }
-
-  // Check for appropriate magic
-  if (memcmp(header.signature, SIGNATURE, SIGNATURE_LEN) != 0) {
-    errx(1, "malformed patch file signature\n");
-  }
-
-  new_sz = header.new_sz;
-  if (new_sz < 0) {
-    errx(1, "corrupt patch: new size is smaller than 0(%s)\n", argv[3]);
-  }
-
   if (((fd = open(argv[1], O_RDONLY, 0)) < 0) ||
       ((old_sz = lseek(fd, 0, SEEK_END)) == -1) ||
-      ((old = malloc(old_sz + 1)) == NULL) || (lseek(fd, 0, SEEK_SET) != 0) ||
-      (read(fd, old, old_sz) != old_sz) || (fstat(fd, &sb)) ||
+      ((old_buffer = malloc(old_sz + 1)) == NULL) ||
+      (lseek(fd, 0, SEEK_SET) != 0) ||
+      (read(fd, old_buffer, old_sz) != old_sz) || (fstat(fd, &sb)) ||
       (close(fd) == -1)) {
     err(1, "failed to open old file: %s\n", argv[1]);
   }
 
-  bz2 = BZ2_bzReadOpen(&bz2err, pf, 0, 0, NULL, 0);
-  if (bz2 == NULL) {
-    errx(1, "err at BZ2_bzReadOpen, code=%d\n", bz2err);
+  make_array_like(&old_array_like, old_buffer, old_sz);
+  make_array_like_adapter(&old, &old_array_like);
+
+  // open patch file
+  fp = fopen(argv[3], "r");
+  if (fp == NULL) {
+    err(1, "failed to open patch file: %s\n", argv[3]);
   }
 
-  stream.read = bz2_read;
-  stream.opaque = bz2;
-  if (bspatch(old, old_sz, new_sz, &stream)) {
+  patch.opaque = fp;
+  patch.read = file_read;
+  patch.write = NULL; // patch will not be writen
+
+  if (bspatch(&old, &patch, &new_sz)) {
     errx(1, "internal err at bspatch");
   }
 
-  // Clean up the bzip2 reads
-  BZ2_bzReadClose(&bz2err, bz2);
-  fclose(pf);
+  fclose(fp);
 
-  // Write the new file
+  // write the new file
   if (((fd = open(argv[2], O_CREAT | O_TRUNC | O_WRONLY, sb.st_mode)) < 0) ||
-      (write(fd, old, new_sz) != new_sz) || (close(fd) == -1)) {
+      (write(fd, old_buffer, new_sz) != old_sz) || (close(fd) == -1)) {
     err(1, "failed to write the new file at: %s", argv[2]);
   }
 
-  free(old);
+  free(old_buffer);
 
   return 0;
 }

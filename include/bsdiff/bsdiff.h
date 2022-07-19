@@ -26,25 +26,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _BSDIFF_H_
-#define _BSDIFF_H_
+#ifndef __BSDIFF_BSDIFF_H__
+#define __BSDIFF_BSDIFF_H__
 
-#include <stddef.h>
-#include <stdint.h>
+#include "adapter.h"
+#include "patch_format.h"
 
-#include "types.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef struct bsdiff_stream bsdiff_stream_t;
+#ifdef __cplusplus
+}
+#endif
 
-struct bsdiff_stream {
-  void *opaque;
-
-  void *(*malloc)(size_t size);
-  void (*free)(void *ptr);
-  int (*write)(bsdiff_stream_t *stream, const void *buffer, int size);
-};
-
-int bsdiff(const uint8_t *old, int64_t old_sz, const uint8_t *new,
-           int64_t new_sz, bsdiff_stream_t *stream);
-
-#endif // _BSDIFF_H_
+#endif // __BSDIFF_BSDIFF_H__

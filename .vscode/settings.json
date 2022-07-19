@@ -22,6 +22,8 @@
         "valarray": "c",
         "vector": "c",
         "iterator": "c",
-        "ranges": "c"
+        "ranges": "c",
+        "istream": "c",
+        "*.tcc": "c"
     }
 }

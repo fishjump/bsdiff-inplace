@@ -26,15 +26,44 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _BSDIFF_BIN_DEFS_H_
-#define _BSDIFF_BIN_DEFS_H_
+#ifndef __BSDIFF_ADAPTER_H__
+#define __BSDIFF_ADAPTER_H__
 
-#define SIGNATURE "YUEYU/BSDIFF"
-#define SIGNATURE_LEN (sizeof(SIGNATURE) - 1) /* -1 for '\0' */
+#include <stddef.h>
+#include <stdint.h>
 
-typedef struct header {
-  char signature[SIGNATURE_LEN];
-  uint64_t new_sz;
-} __attribute__((packed)) header_t;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#endif // _BSDIFF_BIN_DEFS_H_
+typedef struct bsdiff_array_like bsdiff_array_like_t;
+typedef size_t (*fd_read_func_t)(const bsdiff_array_like_t *arr, size_t offset,
+                                 void *buffer, size_t size);
+typedef size_t (*fd_write_func_t)(bsdiff_array_like_t *arr, size_t offset,
+                                  void *buffer, size_t size);
+typedef size_t (*fd_len_func_t)(bsdiff_array_like_t *arr);
+
+struct bsdiff_array_like {
+  void *opaque;
+  fd_read_func_t read;
+  fd_write_func_t write;
+  fd_len_func_t len;
+};
+
+typedef struct bsdiff_stream bsdiff_stream_t;
+typedef size_t (*fs_read_func_t)(const bsdiff_stream_t *fs, void *buffer,
+                                 size_t size);
+typedef size_t (*fs_write_func_t)(bsdiff_stream_t *fs, void *buffer,
+                                  size_t size);
+
+struct bsdiff_stream {
+  void *opaque;
+  fs_read_func_t read;
+  fs_write_func_t write;
+};
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __BSDIFF_ADAPTER_H__

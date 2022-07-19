@@ -28,7 +28,6 @@
 
 #include <sys/types.h>
 
-#include <bzlib.h>
 #include <err.h>
 #include <fcntl.h>
 #include <memory.h>
@@ -36,23 +35,26 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <bsdiff/bsdiff.h>
+#include <bsdiff/legacy/bsdiff.h>
 
-#include "defs.h"
+// static int bz2_write(struct bsdiff_stream *stream, const void *buffer,
+//                      int size) {
+//   int bz2err;
+//   BZFILE *bz2;
 
-static int bz2_write(struct bsdiff_stream *stream, const void *buffer,
-                     int size) {
-  int bz2err;
-  BZFILE *bz2;
+//   bz2 = (BZFILE *)stream->opaque;
+//   BZ2_bzWrite(&bz2err, bz2, (void *)buffer, size);
 
-  bz2 = (BZFILE *)stream->opaque;
-  BZ2_bzWrite(&bz2err, bz2, (void *)buffer, size);
+//   if (bz2err != BZ_STREAM_END && bz2err != BZ_OK) {
+//     return -1;
+//   }
 
-  if (bz2err != BZ_STREAM_END && bz2err != BZ_OK) {
-    return -1;
-  }
+//   return 0;
+// }
 
-  return 0;
+static int file_write(struct bsdiff_stream *stream, const void *buffer,
+                      int size) {
+  return fwrite(buffer, size, 1, (FILE *)stream->opaque);
 }
 
 int main(int argc, char *argv[]) {
@@ -63,10 +65,10 @@ int main(int argc, char *argv[]) {
   off_t old_sz, new_sz;
   FILE *pf;
   bsdiff_stream_t stream;
-  BZFILE *bz2;
+  // BZFILE *bz2;
 
-  header_t header = {
-      .signature = SIGNATURE,
+  bsdiff_header_t header = {
+      .signature = BSDIFF_SIGNATURE,
       .new_sz = 0,
   };
 
@@ -104,24 +106,14 @@ int main(int argc, char *argv[]) {
     err(1, "failed to write header\n");
   }
 
-  bz2 = BZ2_bzWriteOpen(&bz2err, pf, 9, 0, 0);
-  if (bz2 == NULL) {
-    errx(1, "BZ2_bzWriteOpen, bz2err=%d", bz2err);
-  }
-
   stream.malloc = malloc;
   stream.free = free;
-  stream.write = bz2_write;
-  stream.opaque = bz2;
+  stream.write = file_write;
+  stream.opaque = pf;
 
   if (bsdiff(old, old_sz, new, new_sz, &stream)) {
     err(1, "internal err at bsdiff\n");
     return -1;
-  }
-
-  BZ2_bzWriteClose(&bz2err, bz2, 0, NULL, NULL);
-  if (bz2err != BZ_OK) {
-    err(1, "BZ2_bzWriteClose, bz2err=%d", bz2err);
   }
 
   if (fclose(pf)) {
