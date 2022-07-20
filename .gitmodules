@@ -1,12 +1,3 @@
-[submodule "lib/lzss"]
-	path = lib/lzss
-	url = https://github.com/fishjump/lzss-standalone.git
-[submodule "lib/heatshrink"]
-	path = lib/heatshrink
-	url = https://github.com/atomicobject/heatshrink.git
-[submodule "lib/lib/FastLZ"]
-	path = lib/lib/FastLZ
-	url = https://github.com/ariya/FastLZ.git
 [submodule "lib/FastLZ"]
 	path = lib/FastLZ
 	url = https://github.com/ariya/FastLZ.git

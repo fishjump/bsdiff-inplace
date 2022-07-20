@@ -1,4 +1,9 @@
-# demo
+# vscode ignore
+.vscode
+!.vscode/c_cpp_properties.json
+!.vscode/settings.json
+
+# demo ignore
 demo/hello1
 demo/hello2
 demo/hello3
