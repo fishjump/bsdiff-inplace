@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.22)
 
 project(bsdiff)
 
+include(cmake/git-submodule-update.cmake)
+GitSubmoduleUpdate()
+
 # Generate the compile_commands.json for ide autocompletion.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_STANDARD 17)
